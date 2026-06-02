@@ -1,0 +1,15 @@
+node_modules/
+.next/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.local
+.env*.local
+data/chroma/
+*.egg-info/
+.DS_Store
+*.log
+.vercel
+agent-tools/
