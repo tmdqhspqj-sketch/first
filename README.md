@@ -2,6 +2,13 @@
 
 로컬 Ollama 모델, RAG(ChromaDB), LangGraph 에이전트, FastAPI, FastMCP, Next.js 채팅 UI.
 
+## GitHub + Vercel
+
+- 로컬 Git: `main` 브랜치에 커밋됨
+- GitHub 푸시: `.\scripts\push-github.ps1 -RepoUrl "https://github.com/<USER>/<REPO>.git"`
+- Vercel: 저장소 연결 후 **Root Directory = `frontend`**, `NEXT_PUBLIC_API_URL` 설정  
+  → [docs/DEPLOY.md](docs/DEPLOY.md)
+
 ## 권장 하드웨어 (확인됨: hsb PC)
 
 | 항목 | 사양 |
