@@ -13,3 +13,5 @@ data/chroma/
 *.log
 .vercel
 agent-tools/
+scripts/vercel_autodeploy/auth/
+scripts/vercel_autodeploy/*.png
