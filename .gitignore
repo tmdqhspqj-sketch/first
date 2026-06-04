@@ -8,6 +8,12 @@ venv/
 .env.local
 .env*.local
 data/chroma/
+erp/backend/.venv/
+erp/backend/erp.db
+erp/backend/.env
+erp/frontend/node_modules/
+erp/frontend/.next/
+erp/frontend/.env.local
 *.egg-info/
 .DS_Store
 *.log
