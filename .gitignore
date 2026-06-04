@@ -18,6 +18,8 @@ erp/frontend/.env.local
 .DS_Store
 *.log
 .vercel
+frontend/.vercel
+erp/frontend/.vercel
 agent-tools/
 scripts/vercel_autodeploy/auth/
 scripts/vercel_autodeploy/*.png
