@@ -159,6 +159,8 @@ class MessageOut(BaseModel):
     sender: UserOut
     created_at: datetime
     read_at: datetime | None = None
+    archived: bool = False
+    important: bool = False
     attachments: list[AttachmentOut] = Field(default_factory=list)
 
     class Config:

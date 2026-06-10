@@ -138,6 +138,9 @@ class MessageRecipient(Base):
     message_id: Mapped[int] = mapped_column(ForeignKey("messages.id"))
     recipient_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    important: Mapped[bool] = mapped_column(Boolean, default=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     message: Mapped["Message"] = relationship()
     recipient: Mapped["User"] = relationship()

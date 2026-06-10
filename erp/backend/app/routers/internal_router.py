@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.services.message_retention import purge_expired_messages
 from app.services.purge import purge_deactivated_users
 
 router = APIRouter(prefix="/internal", tags=["internal"])
@@ -17,5 +18,6 @@ def cron_purge(
     secret = os.environ.get("ERP_CRON_SECRET") or os.environ.get("CRON_SECRET")
     if secret and authorization != f"Bearer {secret}":
         raise HTTPException(403, "Forbidden")
-    count = purge_deactivated_users(db)
-    return {"purged": count}
+    users_purged = purge_deactivated_users(db)
+    messages_purged = purge_expired_messages(db)
+    return {"users_purged": users_purged, "messages_purged": messages_purged}

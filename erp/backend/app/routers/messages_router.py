@@ -3,6 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
+from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
 
 from app.auth import _user_from_jwt, get_current_user, get_optional_user
@@ -10,11 +11,23 @@ from app.database import get_db
 from app.models import Message, MessageAttachment, MessageRecipient, MessageType, User
 from app.schemas import AttachmentOut, MessageCreateIn, MessageOut
 from app.services.attachments import decode_attachment, validate_attachments
+from app.services.message_retention import purge_expired_messages, retention_cutoff, visible_recipient_filter
 
 router = APIRouter(prefix="/messages", tags=["messages"])
 
 
-def _message_out(msg: Message, read_at: datetime | None = None) -> MessageOut:
+def _get_recipient(db: Session, message_id: int, user_id: int) -> MessageRecipient:
+    rec = (
+        db.query(MessageRecipient)
+        .filter(MessageRecipient.message_id == message_id, MessageRecipient.recipient_id == user_id)
+        .first()
+    )
+    if not rec or rec.deleted_at:
+        raise HTTPException(404, "Not found")
+    return rec
+
+
+def _message_out(msg: Message, rec: MessageRecipient) -> MessageOut:
     return MessageOut(
         id=msg.id,
         type=msg.type,
@@ -22,9 +35,26 @@ def _message_out(msg: Message, read_at: datetime | None = None) -> MessageOut:
         body=msg.body,
         sender=msg.sender,
         created_at=msg.created_at,
-        read_at=read_at,
+        read_at=rec.read_at,
+        archived=rec.archived,
+        important=rec.important,
         attachments=[AttachmentOut.model_validate(a) for a in msg.attachments],
     )
+
+
+@router.get("/unread-count")
+def unread_count(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    cutoff = retention_cutoff()
+    count = (
+        db.query(MessageRecipient)
+        .join(Message, MessageRecipient.message_id == Message.id)
+        .filter(
+            and_(*visible_recipient_filter(user.id, cutoff)),
+            MessageRecipient.read_at.is_(None),
+        )
+        .count()
+    )
+    return {"count": count}
 
 
 @router.get("/recipients", response_model=list)
@@ -95,11 +125,13 @@ def send_message(
         .filter(Message.id == msg.id)
         .one()
     )
-    return _message_out(msg)
+    rec = db.query(MessageRecipient).filter(MessageRecipient.message_id == msg.id).first()
+    return _message_out(msg, rec)
 
 
 @router.get("/inbox", response_model=list[MessageOut])
 def inbox(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    cutoff = retention_cutoff()
     rows = (
         db.query(MessageRecipient, Message)
         .join(Message, MessageRecipient.message_id == Message.id)
@@ -107,11 +139,11 @@ def inbox(db: Session = Depends(get_db), user: User = Depends(get_current_user))
             joinedload(Message.sender).joinedload(User.rank),
             joinedload(Message.attachments),
         )
-        .filter(MessageRecipient.recipient_id == user.id)
+        .filter(and_(*visible_recipient_filter(user.id, cutoff)))
         .order_by(Message.id.desc())
         .all()
     )
-    return [_message_out(msg, rec.read_at) for rec, msg in rows]
+    return [_message_out(msg, rec) for rec, msg in rows]
 
 
 @router.get("/attachments/{attachment_id}")
@@ -132,6 +164,7 @@ def download_attachment(
         .filter(
             MessageRecipient.message_id == att.message_id,
             MessageRecipient.recipient_id == user.id,
+            MessageRecipient.deleted_at.is_(None),
         )
         .first()
     )
@@ -148,13 +181,32 @@ def download_attachment(
 
 @router.post("/{message_id}/read")
 def mark_read(message_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    rec = (
-        db.query(MessageRecipient)
-        .filter(MessageRecipient.message_id == message_id, MessageRecipient.recipient_id == user.id)
-        .first()
-    )
-    if not rec:
-        raise HTTPException(404, "Not found")
-    rec.read_at = datetime.utcnow()
+    rec = _get_recipient(db, message_id, user.id)
+    if not rec.read_at:
+        rec.read_at = datetime.utcnow()
+        db.commit()
+    return {"ok": True}
+
+
+@router.post("/{message_id}/delete")
+def delete_message(message_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    rec = _get_recipient(db, message_id, user.id)
+    rec.deleted_at = datetime.utcnow()
     db.commit()
     return {"ok": True}
+
+
+@router.post("/{message_id}/archive")
+def toggle_archive(message_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    rec = _get_recipient(db, message_id, user.id)
+    rec.archived = not rec.archived
+    db.commit()
+    return {"ok": True, "archived": rec.archived}
+
+
+@router.post("/{message_id}/important")
+def toggle_important(message_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    rec = _get_recipient(db, message_id, user.id)
+    rec.important = not rec.important
+    db.commit()
+    return {"ok": True, "important": rec.important}

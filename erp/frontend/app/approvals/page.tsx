@@ -18,6 +18,7 @@ export default function ApprovalsPage() {
   const [list, setList] = useState<Approval[]>([]);
   const [inbox, setInbox] = useState<Approval[]>([]);
   const [tab, setTab] = useState<"list" | "leave" | "idea">("list");
+  const [leaveKind, setLeaveKind] = useState("연차");
   const [error, setError] = useState("");
 
   const load = () => {
@@ -35,13 +36,16 @@ export default function ApprovalsPage() {
   async function createLeave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const kind = String(fd.get("kind") ?? "");
+    const start = String(fd.get("start") ?? "");
+    const end = kind === "반차" ? start : String(fd.get("end") ?? "");
     try {
       const created = await api<Approval>("/approvals/leave", {
         method: "POST",
         body: JSON.stringify({
-          leave_kind: fd.get("kind"),
-          leave_start: fd.get("start"),
-          leave_end: fd.get("end"),
+          leave_kind: kind,
+          leave_start: start,
+          leave_end: end,
           body: fd.get("body"),
         }),
       });
@@ -89,6 +93,8 @@ export default function ApprovalsPage() {
   }
 
   const canApprove = me && me.role !== "admin";
+  const isTemp = me?.rank?.name === "임시";
+  const leaveKinds = isTemp ? ["연차", "반차"] : ["연차", "반차", "병가"];
 
   return (
     <AppShell>
@@ -109,16 +115,26 @@ export default function ApprovalsPage() {
       {tab === "leave" && (
         <form className="card" onSubmit={createLeave}>
           <h3>휴가 신청</h3>
+          {isTemp && (
+            <p style={{ fontSize: "0.9rem", color: "var(--muted)" }}>임시 직급은 연차·반차만 신청할 수 있습니다.</p>
+          )}
           <label className="label">종류</label>
-          <select name="kind" className="field" defaultValue="연차">
-            <option>연차</option>
-            <option>반차</option>
-            <option>병가</option>
+          <select name="kind" className="field" value={leaveKind} onChange={(e) => setLeaveKind(e.target.value)}>
+            {leaveKinds.map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
           </select>
-          <label className="label">시작일</label>
+          <label className="label">{leaveKind === "반차" ? "날짜" : "시작일"}</label>
           <input name="start" type="date" className="field" required />
-          <label className="label">종료일</label>
-          <input name="end" type="date" className="field" required />
+          {leaveKind !== "반차" && (
+            <>
+              <label className="label">종료일</label>
+              <input name="end" type="date" className="field" required />
+            </>
+          )}
+          {leaveKind === "반차" && <input type="hidden" name="end" value="" />}
           <label className="label">사유</label>
           <textarea name="body" className="field" rows={3} />
           <button type="submit" className="btn btn-primary">

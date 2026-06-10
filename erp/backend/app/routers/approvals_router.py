@@ -46,12 +46,18 @@ def approval_inbox(db: Session = Depends(get_db), user: User = Depends(get_curre
     return [r for r in items if can_approve(user, r.status)]
 
 
+TEMP_LEAVE_KINDS = {"연차", "반차"}
+
+
 @router.post("/leave", response_model=ApprovalOut)
 def create_leave(
     body: LeaveCreateIn,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    if user.rank.name == "임시" and body.leave_kind not in TEMP_LEAVE_KINDS:
+        raise HTTPException(403, "임시 직급은 연차·반차만 신청할 수 있습니다")
+    leave_end = body.leave_start if body.leave_kind == "반차" else body.leave_end
     req = ApprovalRequest(
         type=ApprovalType.leave.value,
         status=ApprovalStatus.draft.value,
@@ -60,7 +66,7 @@ def create_leave(
         body=body.body,
         leave_kind=body.leave_kind,
         leave_start=body.leave_start,
-        leave_end=body.leave_end,
+        leave_end=leave_end,
     )
     db.add(req)
     db.commit()

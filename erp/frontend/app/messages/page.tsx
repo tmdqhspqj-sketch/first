@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import AppShell from "@/components/AppShell";
+import AppShell, { notifyMessagesUpdated } from "@/components/AppShell";
 import { api, attachmentUrl, getToken, MessageAttachment, User } from "@/lib/api";
 
 type Msg = {
@@ -12,6 +12,8 @@ type Msg = {
   sender: User;
   created_at: string;
   read_at?: string;
+  archived: boolean;
+  important: boolean;
   attachments: MessageAttachment[];
 };
 
@@ -89,7 +91,12 @@ export default function MessagesPage() {
   const [formKey, setFormKey] = useState(0);
   const [error, setError] = useState("");
 
-  const load = () => api<Msg[]>("/messages/inbox").then(setInbox);
+  const load = () =>
+    api<Msg[]>("/messages/inbox").then((items) => {
+      setInbox(items);
+      notifyMessagesUpdated();
+    });
+
   const loadRecipients = () => api<Recipient[]>("/messages/recipients").then(setRecipients);
 
   useEffect(() => {
@@ -151,8 +158,7 @@ export default function MessagesPage() {
     e.preventDefault();
     setError("");
 
-    const recipientIds =
-      form.type === "note" ? [form.noteRecipientId] : form.mailRecipientIds;
+    const recipientIds = form.type === "note" ? [form.noteRecipientId] : form.mailRecipientIds;
 
     if (!recipientIds.length || recipientIds.some((id) => !id)) {
       setError("받는 사람을 선택해 주세요");
@@ -186,9 +192,33 @@ export default function MessagesPage() {
     }
   }
 
+  async function markRead(id: number) {
+    await api(`/messages/${id}/read`, { method: "POST" });
+    load();
+  }
+
+  async function removeMsg(id: number) {
+    if (!confirm("이 메시지를 삭제할까요?")) return;
+    await api(`/messages/${id}/delete`, { method: "POST" });
+    load();
+  }
+
+  async function toggleArchive(id: number) {
+    await api(`/messages/${id}/archive`, { method: "POST" });
+    load();
+  }
+
+  async function toggleImportant(id: number) {
+    await api(`/messages/${id}/important`, { method: "POST" });
+    load();
+  }
+
   return (
     <AppShell>
       <h1>메시지</h1>
+      <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+        일반 메시지는 14일 보관 · 보관/중요 표시 시 삭제 전까지 유지
+      </p>
       <button type="button" className="btn btn-ghost" onClick={() => setTab("inbox")}>
         받은함
       </button>{" "}
@@ -297,6 +327,8 @@ export default function MessagesPage() {
               <strong>
                 [{m.type === "note" ? "쪽지" : "메일"}] {m.subject || "(제목 없음)"}
               </strong>
+              {m.important && <span className="msg-tag msg-tag-important">중요</span>}
+              {m.archived && <span className="msg-tag msg-tag-archived">보관</span>}
               <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
                 from {m.sender.rank?.name} {m.sender.name} · {new Date(m.created_at).toLocaleString("ko")}
                 {!m.read_at && " · NEW"}
@@ -305,6 +337,22 @@ export default function MessagesPage() {
               {m.attachments?.map((att) => (
                 <AttachmentLink key={att.id} att={att} />
               ))}
+              <div className="msg-actions">
+                {!m.read_at && (
+                  <button type="button" className="btn btn-ghost" onClick={() => markRead(m.id)}>
+                    읽음
+                  </button>
+                )}
+                <button type="button" className="btn btn-ghost" onClick={() => toggleImportant(m.id)}>
+                  {m.important ? "중요 해제" : "중요"}
+                </button>
+                <button type="button" className="btn btn-ghost" onClick={() => toggleArchive(m.id)}>
+                  {m.archived ? "보관 해제" : "보관"}
+                </button>
+                <button type="button" className="btn btn-danger" onClick={() => removeMsg(m.id)}>
+                  삭제
+                </button>
+              </div>
             </div>
           ))}
           {inbox.length === 0 && <p>받은 메시지가 없습니다.</p>}

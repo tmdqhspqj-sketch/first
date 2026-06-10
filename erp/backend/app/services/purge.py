@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import SessionLocal
 from app.models import User, UserRole
+from app.services.message_retention import purge_expired_messages
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ async def purge_loop() -> None:
             db = SessionLocal()
             try:
                 purge_deactivated_users(db)
+                purge_expired_messages(db)
             finally:
                 db.close()
         except Exception:
