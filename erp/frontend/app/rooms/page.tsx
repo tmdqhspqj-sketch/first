@@ -31,6 +31,14 @@ function buildTimeSlots(maxStartHour: number, maxStartMinute: number): string[] 
 const SLOTS_30 = buildTimeSlots(16, 30);
 const SLOTS_60 = buildTimeSlots(16, 0);
 
+function todayLocal() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function formatMonthDay(iso: string) {
   const d = new Date(iso);
   return `${d.getMonth() + 1}월 ${d.getDate()}일`;
@@ -50,7 +58,9 @@ export default function RoomsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [me, setMe] = useState<User | null>(null);
   const [duration, setDuration] = useState(30);
+  const [formKey, setFormKey] = useState(0);
   const [error, setError] = useState("");
+  const minDate = todayLocal();
 
   const canBook = me?.rank?.name !== "임시";
   const timeSlots = duration === 60 ? SLOTS_60 : SLOTS_30;
@@ -91,8 +101,8 @@ export default function RoomsPage() {
         }),
       });
       load();
-      e.currentTarget.reset();
       setDuration(30);
+      setFormKey((k) => k + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "예약 실패");
     }
@@ -110,7 +120,7 @@ export default function RoomsPage() {
           <p>임시 직급은 회의실 예약을 할 수 없습니다. 예약 목록만 조회할 수 있습니다.</p>
         </div>
       ) : (
-        <form className="card" onSubmit={book}>
+        <form key={formKey} className="card" onSubmit={book}>
           <label className="label">회의실</label>
           <select name="room_id" className="field" required>
             {rooms.map((r) => (
@@ -122,7 +132,7 @@ export default function RoomsPage() {
           <label className="label">제목</label>
           <input name="title" className="field" required />
           <label className="label">날짜</label>
-          <input name="date" type="date" className="field" required />
+          <input name="date" type="date" className="field" required min={minDate} />
           <label className="label">예약 시간</label>
           <select
             name="duration"

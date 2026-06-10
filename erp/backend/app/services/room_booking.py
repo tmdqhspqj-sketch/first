@@ -29,3 +29,6 @@ def validate_booking_window(start_at: datetime, end_at: datetime) -> None:
     end_t = end_at.time().replace(second=0, microsecond=0)
     if start_t < WORK_START or end_t > WORK_END:
         raise HTTPException(400, "회의실 예약은 일과시간 09:00~17:00만 가능합니다")
+    today = datetime.now().date()
+    if start_at.date() < today:
+        raise HTTPException(400, "지난 날짜는 예약할 수 없습니다")

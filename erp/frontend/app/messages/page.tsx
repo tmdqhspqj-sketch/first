@@ -15,6 +15,13 @@ type Msg = {
   attachments: MessageAttachment[];
 };
 
+type Recipient = {
+  id: number;
+  login_id: string;
+  name: string;
+  rank: { id: number; name: string; level: number };
+};
+
 type PendingFile = {
   filename: string;
   content_type: string;
@@ -23,6 +30,15 @@ type PendingFile = {
 };
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
+type SendForm = {
+  type: "note" | "mail";
+  subject: string;
+  body: string;
+  noteRecipientId: number;
+  mailRecipientIds: number[];
+};
+
+const EMPTY_FORM: SendForm = { type: "note", subject: "", body: "", noteRecipientId: 0, mailRecipientIds: [] };
 
 function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -66,17 +82,44 @@ function AttachmentLink({ att }: { att: MessageAttachment }) {
 
 export default function MessagesPage() {
   const [inbox, setInbox] = useState<Msg[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [tab, setTab] = useState<"inbox" | "send">("inbox");
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [formKey, setFormKey] = useState(0);
   const [error, setError] = useState("");
 
   const load = () => api<Msg[]>("/messages/inbox").then(setInbox);
+  const loadRecipients = () => api<Recipient[]>("/messages/recipients").then(setRecipients);
 
   useEffect(() => {
     load();
-    api<User[]>("/users").then(setUsers);
+    loadRecipients();
   }, []);
+
+  useEffect(() => {
+    if (recipients.length && !form.noteRecipientId) {
+      setForm((f) => ({ ...f, noteRecipientId: recipients[0].id }));
+    }
+  }, [recipients, form.noteRecipientId]);
+
+  function resetSendForm() {
+    setForm({
+      ...EMPTY_FORM,
+      noteRecipientId: recipients[0]?.id ?? 0,
+    });
+    setPendingFiles([]);
+    setFormKey((k) => k + 1);
+  }
+
+  function toggleMailRecipient(id: number) {
+    setForm((f) => {
+      const ids = f.mailRecipientIds.includes(id)
+        ? f.mailRecipientIds.filter((x) => x !== id)
+        : [...f.mailRecipientIds, id];
+      return { ...f, mailRecipientIds: ids };
+    });
+  }
 
   async function onFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
     setError("");
@@ -104,26 +147,30 @@ export default function MessagesPage() {
     e.target.value = "";
   }
 
-  async function send(e: React.FormEvent<HTMLFormElement>) {
+  async function send(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    const fd = new FormData(e.currentTarget);
-    const type = fd.get("type") as string;
+
     const recipientIds =
-      type === "note"
-        ? [Number(fd.get("recipient"))]
-        : String(fd.get("recipients"))
-            .split(",")
-            .map((s) => Number(s.trim()))
-            .filter(Boolean);
+      form.type === "note" ? [form.noteRecipientId] : form.mailRecipientIds;
+
+    if (!recipientIds.length || recipientIds.some((id) => !id)) {
+      setError("받는 사람을 선택해 주세요");
+      return;
+    }
+    if (!form.body.trim()) {
+      setError("내용을 입력해 주세요");
+      return;
+    }
+
     try {
       await api("/messages", {
         method: "POST",
         body: JSON.stringify({
-          type,
+          type: form.type,
           recipient_ids: recipientIds,
-          subject: fd.get("subject"),
-          body: fd.get("body"),
+          subject: form.subject.trim(),
+          body: form.body.trim(),
           attachments: pendingFiles.map(({ filename, content_type, data_base64 }) => ({
             filename,
             content_type,
@@ -131,10 +178,9 @@ export default function MessagesPage() {
           })),
         }),
       });
-      setPendingFiles([]);
+      resetSendForm();
       setTab("inbox");
       load();
-      e.currentTarget.reset();
     } catch (err) {
       setError(err instanceof Error ? err.message : "전송 실패");
     }
@@ -152,41 +198,93 @@ export default function MessagesPage() {
       {error && <p className="error">{error}</p>}
 
       {tab === "send" && (
-        <form className="card" onSubmit={send} style={{ marginTop: "1rem" }}>
+        <form key={formKey} className="card" onSubmit={send} style={{ marginTop: "1rem" }}>
           <label className="label">종류</label>
-          <select name="type" className="field" defaultValue="note">
+          <select
+            className="field"
+            value={form.type}
+            onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as "note" | "mail" }))}
+          >
             <option value="note">쪽지 (1명)</option>
-            <option value="mail">메일 (여러 명, 쉼표 구분 ID)</option>
+            <option value="mail">메일 (여러 명)</option>
           </select>
-          <label className="label">받는 사람 (쪽지)</label>
-          <select name="recipient" className="field">
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} ({u.login_id})
-              </option>
-            ))}
-          </select>
-          <label className="label">받는 사람 ID들 (메일)</label>
-          <input name="recipients" className="field" placeholder="예: 3,4" />
+
+          {recipients.length === 0 ? (
+            <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>보낼 수 있는 받는 사람이 없습니다.</p>
+          ) : form.type === "note" ? (
+            <>
+              <label className="label">받는 사람</label>
+              <select
+                className="field"
+                value={form.noteRecipientId}
+                onChange={(e) => setForm((f) => ({ ...f, noteRecipientId: Number(e.target.value) }))}
+              >
+                {recipients.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.rank.name} {u.name} ({u.login_id})
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <>
+              <label className="label">받는 사람 (여러 명 선택)</label>
+              <div className="card" style={{ padding: "0.75rem", marginBottom: "0.5rem" }}>
+                {recipients.map((u) => (
+                  <label key={u.id} style={{ display: "block", marginBottom: "0.35rem", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={form.mailRecipientIds.includes(u.id)}
+                      onChange={() => toggleMailRecipient(u.id)}
+                      style={{ marginRight: "0.5rem" }}
+                    />
+                    {u.rank.name} {u.name} ({u.login_id})
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+
           <label className="label">제목</label>
-          <input name="subject" className="field" />
+          <input
+            className="field"
+            value={form.subject}
+            onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+          />
           <label className="label">내용</label>
-          <textarea name="body" className="field" rows={4} required />
+          <textarea
+            className="field"
+            rows={4}
+            required
+            value={form.body}
+            onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
+          />
           <label className="label">첨부파일 (사진·문서, 최대 5개·각 5MB)</label>
-          <input type="file" className="field" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip" onChange={onFilesSelected} />
+          <input
+            type="file"
+            className="field"
+            multiple
+            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+            onChange={onFilesSelected}
+          />
           {pendingFiles.length > 0 && (
             <ul style={{ margin: "0.5rem 0", paddingLeft: "1.2rem", fontSize: "0.9rem" }}>
               {pendingFiles.map((f, i) => (
                 <li key={`${f.filename}-${i}`}>
                   {f.filename} ({formatSize(f.size_bytes)}){" "}
-                  <button type="button" className="btn btn-ghost" style={{ padding: "0 0.4rem" }} onClick={() => setPendingFiles((p) => p.filter((_, j) => j !== i))}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ padding: "0 0.4rem" }}
+                    onClick={() => setPendingFiles((p) => p.filter((_, j) => j !== i))}
+                  >
                     삭제
                   </button>
                 </li>
               ))}
             </ul>
           )}
-          <button type="submit" className="btn btn-primary">
+          <button type="submit" className="btn btn-primary" disabled={recipients.length === 0}>
             전송
           </button>
         </form>

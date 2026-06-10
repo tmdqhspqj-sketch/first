@@ -27,6 +27,26 @@ def _message_out(msg: Message, read_at: datetime | None = None) -> MessageOut:
     )
 
 
+@router.get("/recipients", response_model=list)
+def list_recipients(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    others = (
+        db.query(User)
+        .options(joinedload(User.rank))
+        .filter(User.active.is_(True), User.id != user.id)
+        .order_by(User.id)
+        .all()
+    )
+    return [
+        {
+            "id": u.id,
+            "login_id": u.login_id,
+            "name": u.name,
+            "rank": {"id": u.rank.id, "name": u.rank.name, "level": u.rank.level},
+        }
+        for u in others
+    ]
+
+
 @router.post("", response_model=MessageOut)
 def send_message(
     body: MessageCreateIn,

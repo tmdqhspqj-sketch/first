@@ -13,8 +13,12 @@ type Admin = {
   created_at: string;
 };
 
+const EMPTY = { login_id: "", password: "", name: "" };
+
 export default function AdminsPage() {
   const [admins, setAdmins] = useState<Admin[]>([]);
+  const [form, setForm] = useState(EMPTY);
+  const [formKey, setFormKey] = useState(0);
   const [error, setError] = useState("");
 
   const load = () => api<Admin[]>("/admins").then(setAdmins).catch((e) => setError(String(e)));
@@ -23,22 +27,23 @@ export default function AdminsPage() {
     load();
   }, []);
 
-  async function create(e: React.FormEvent<HTMLFormElement>) {
+  function resetForm() {
+    setForm(EMPTY);
+    setFormKey((k) => k + 1);
+  }
+
+  async function create(e: React.FormEvent) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    setError("");
     try {
       await api("/admins", {
         method: "POST",
-        body: JSON.stringify({
-          login_id: fd.get("login_id"),
-          password: fd.get("password"),
-          name: fd.get("name"),
-        }),
+        body: JSON.stringify(form),
       });
       load();
-      e.currentTarget.reset();
+      resetForm();
     } catch (err) {
-      setError(String(err));
+      setError(err instanceof Error ? err.message : "추가 실패");
     }
   }
 
@@ -60,13 +65,29 @@ export default function AdminsPage() {
         비활성화된 계정은 7일 후 자동 삭제됩니다. 마지막 활성 관리자는 비활성화할 수 없습니다.
       </p>
       {error && <p className="error">{error}</p>}
-      <form className="card" onSubmit={create}>
+      <form key={formKey} className="card" onSubmit={create}>
         <label className="label">로그인 ID</label>
-        <input name="login_id" className="field" required />
+        <input
+          className="field"
+          required
+          value={form.login_id}
+          onChange={(e) => setForm((f) => ({ ...f, login_id: e.target.value }))}
+        />
         <label className="label">비밀번호</label>
-        <input name="password" type="password" className="field" required />
+        <input
+          className="field"
+          type="password"
+          required
+          value={form.password}
+          onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+        />
         <label className="label">이름</label>
-        <input name="name" className="field" required />
+        <input
+          className="field"
+          required
+          value={form.name}
+          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+        />
         <button type="submit" className="btn btn-primary">
           관리자 추가
         </button>
