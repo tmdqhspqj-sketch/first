@@ -20,7 +20,7 @@ STATUS_TO_RANK = {
 
 
 def can_approve(user: User, status: str) -> bool:
-    if user.role == "super":
+    if user.role == "admin":
         return False
     required_rank = STATUS_TO_RANK.get(status)
     if not required_rank:

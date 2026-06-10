@@ -5,6 +5,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.models import MeetingRoom, RoomBooking, User
 from app.schemas import BookingCreateIn, BookingOut, RoomOut
+from app.services.room_booking import validate_booking_window
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
@@ -21,8 +22,6 @@ def list_bookings(db: Session = Depends(get_db), user: User = Depends(get_curren
         .options(joinedload(RoomBooking.room), joinedload(RoomBooking.user).joinedload(User.rank))
         .order_by(RoomBooking.start_at)
     )
-    if user.role != "super":
-        q = q.filter(RoomBooking.user_id == user.id)
     return q.all()
 
 
@@ -32,8 +31,7 @@ def create_booking(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if body.end_at <= body.start_at:
-        raise HTTPException(400, "end must be after start")
+    validate_booking_window(body.start_at, body.end_at)
     overlap = (
         db.query(RoomBooking)
         .filter(
@@ -44,7 +42,7 @@ def create_booking(
         .first()
     )
     if overlap:
-        raise HTTPException(409, "Room already booked")
+        raise HTTPException(409, "해당 시간에 이미 예약이 있습니다")
     b = RoomBooking(
         room_id=body.room_id,
         user_id=user.id,
@@ -71,7 +69,7 @@ def cancel_booking(
     b = db.get(RoomBooking, booking_id)
     if not b:
         raise HTTPException(404, "Not found")
-    if user.role != "super" and b.user_id != user.id:
+    if user.role != "admin" and b.user_id != user.id:
         raise HTTPException(403, "Not yours")
     db.delete(b)
     db.commit()

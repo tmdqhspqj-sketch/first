@@ -88,7 +88,7 @@ export default function ApprovalsPage() {
     load();
   }
 
-  const canApprove = me && me.role !== "super";
+  const canApprove = me && me.role !== "admin";
 
   return (
     <AppShell>
@@ -182,7 +182,7 @@ export default function ApprovalsPage() {
             </div>
           )}
           <div className="card">
-            <h3>{me?.role === "super" ? "전체 결재 관람" : "결재 목록"}</h3>
+            <h3>{me?.role === "admin" ? "전체 결재 관람" : "결재 목록"}</h3>
             <table>
               <thead>
                 <tr>

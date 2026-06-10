@@ -41,6 +41,26 @@ class UserCreateIn(BaseModel):
     rank_id: int
 
 
+class AdminOut(BaseModel):
+    id: int
+    login_id: str
+    name: str
+    active: bool
+    deactivated_at: datetime | None = None
+    created_at: datetime
+
+
+class AdminCreateIn(BaseModel):
+    login_id: str
+    password: str
+    name: str
+
+
+class AdminUpdateIn(BaseModel):
+    name: str | None = None
+    password: str | None = None
+
+
 class LeaveCreateIn(BaseModel):
     title: str = "휴가 신청"
     leave_kind: str = "연차"
@@ -107,11 +127,28 @@ class BookingOut(BaseModel):
         from_attributes = True
 
 
+class AttachmentIn(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    content_type: str = Field(default="application/octet-stream", max_length=128)
+    data_base64: str = Field(min_length=1)
+
+
+class AttachmentOut(BaseModel):
+    id: int
+    filename: str
+    content_type: str
+    size_bytes: int
+
+    class Config:
+        from_attributes = True
+
+
 class MessageCreateIn(BaseModel):
     type: str = Field(pattern="^(note|mail)$")
     recipient_ids: list[int]
     subject: str = ""
     body: str = Field(min_length=1)
+    attachments: list[AttachmentIn] = Field(default_factory=list)
 
 
 class MessageOut(BaseModel):
@@ -122,6 +159,7 @@ class MessageOut(BaseModel):
     sender: UserOut
     created_at: datetime
     read_at: datetime | None = None
+    attachments: list[AttachmentOut] = Field(default_factory=list)
 
     class Config:
         from_attributes = True

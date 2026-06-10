@@ -32,7 +32,7 @@ export default function DashboardPage() {
         <div className="card">
           <div className="label">역할</div>
           <strong>{me?.role ?? "…"}</strong>
-          {me?.role === "super" && (
+          {me?.role === "admin" && (
             <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "0.5rem 0 0" }}>
               결재 승인 없음 · 전체 관람만
             </p>

@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: first-erp-api
+    runtime: docker
+    dockerfilePath: ./erp/backend/Dockerfile
+    dockerContext: ./erp/backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ERP_SECRET_KEY
+        generateValue: true
+      - key: ERP_DATABASE_URL
+        sync: false
+      - key: ERP_CORS_ORIGINS
+        value: https://first-erp-pearl.vercel.app,http://localhost:3001
+      - key: PORT
+        value: 8001

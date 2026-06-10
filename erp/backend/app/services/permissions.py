@@ -1,12 +1,12 @@
 from fastapi import HTTPException, status
 
-from app.models import User
+from app.models import User, UserRole
 
 
 def can_manage_user(actor: User, target_rank_level: int) -> bool:
-    if actor.role == "super":
+    if actor.role == UserRole.admin.value:
         return True
-    if actor.role == "manager":
+    if actor.role == UserRole.manager.value:
         return target_rank_level < actor.rank.level
     return False
 

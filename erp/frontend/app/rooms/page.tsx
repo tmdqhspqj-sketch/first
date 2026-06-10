@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AppShell from "@/components/AppShell";
-import { api } from "@/lib/api";
+import { api, User } from "@/lib/api";
 
 type Room = { id: number; name: string; capacity: number };
 type Booking = {
@@ -11,12 +11,33 @@ type Booking = {
   start_at: string;
   end_at: string;
   room: Room;
-  user: { name: string };
+  user: User;
 };
+
+const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
+  const h = String(Math.floor(i / 2)).padStart(2, "0");
+  const m = i % 2 === 0 ? "00" : "30";
+  return `${h}:${m}`;
+});
+
+function formatMonthDay(iso: string) {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+}
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function bookerLabel(user: User) {
+  const rank = user.rank?.name ?? "";
+  return rank ? `${rank} ${user.name}` : user.name;
+}
 
 export default function RoomsPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [error, setError] = useState("");
 
   const load = () => {
     api<Room[]>("/rooms").then(setRooms);
@@ -27,27 +48,45 @@ export default function RoomsPage() {
     load();
   }, []);
 
+  const sortedBookings = useMemo(
+    () => [...bookings].sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime()),
+    [bookings]
+  );
+
   async function book(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError("");
     const fd = new FormData(e.currentTarget);
-    const start = `${fd.get("date")}T${fd.get("start_time")}:00`;
-    const end = `${fd.get("date")}T${fd.get("end_time")}:00`;
-    await api("/rooms/bookings", {
-      method: "POST",
-      body: JSON.stringify({
-        room_id: Number(fd.get("room_id")),
-        title: fd.get("title"),
-        start_at: start,
-        end_at: end,
-      }),
-    });
-    load();
-    e.currentTarget.reset();
+    const date = String(fd.get("date"));
+    const startTime = String(fd.get("start_time"));
+    const durationMin = Number(fd.get("duration"));
+    const start = new Date(`${date}T${startTime}:00`);
+    const end = new Date(start.getTime() + durationMin * 60 * 1000);
+
+    try {
+      await api("/rooms/bookings", {
+        method: "POST",
+        body: JSON.stringify({
+          room_id: Number(fd.get("room_id")),
+          title: fd.get("title"),
+          start_at: start.toISOString(),
+          end_at: end.toISOString(),
+        }),
+      });
+      load();
+      e.currentTarget.reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "예약 실패");
+    }
   }
 
   return (
     <AppShell>
       <h1>회의실 예약</h1>
+      <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+        시작 시간은 30분 단위 · 예약 시간 30분 또는 1시간
+      </p>
+      {error && <p className="error">{error}</p>}
       <form className="card" onSubmit={book}>
         <label className="label">회의실</label>
         <select name="room_id" className="field" required>
@@ -61,10 +100,19 @@ export default function RoomsPage() {
         <input name="title" className="field" required />
         <label className="label">날짜</label>
         <input name="date" type="date" className="field" required />
-        <label className="label">시작</label>
-        <input name="start_time" type="time" className="field" required />
-        <label className="label">종료</label>
-        <input name="end_time" type="time" className="field" required />
+        <label className="label">시작 시간 (30분 단위)</label>
+        <select name="start_time" className="field" required>
+          {TIME_SLOTS.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+        <label className="label">예약 시간</label>
+        <select name="duration" className="field" required defaultValue="30">
+          <option value="30">30분</option>
+          <option value="60">1시간</option>
+        </select>
         <button type="submit" className="btn btn-primary">
           예약
         </button>
@@ -74,6 +122,7 @@ export default function RoomsPage() {
         <table>
           <thead>
             <tr>
+              <th>날짜</th>
               <th>회의실</th>
               <th>제목</th>
               <th>시간</th>
@@ -81,19 +130,20 @@ export default function RoomsPage() {
             </tr>
           </thead>
           <tbody>
-            {bookings.map((b) => (
+            {sortedBookings.map((b) => (
               <tr key={b.id}>
+                <td>{formatMonthDay(b.start_at)}</td>
                 <td>{b.room.name}</td>
                 <td>{b.title}</td>
                 <td>
-                  {new Date(b.start_at).toLocaleString("ko")} ~{" "}
-                  {new Date(b.end_at).toLocaleTimeString("ko", { hour: "2-digit", minute: "2-digit" })}
+                  {formatTime(b.start_at)} ~ {formatTime(b.end_at)}
                 </td>
-                <td>{b.user.name}</td>
+                <td>{bookerLabel(b.user)}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        {sortedBookings.length === 0 && <p style={{ color: "var(--muted)" }}>예약이 없습니다.</p>}
       </div>
     </AppShell>
   );

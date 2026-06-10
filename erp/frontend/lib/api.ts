@@ -13,10 +13,24 @@ export function clearToken() {
   localStorage.removeItem("erp_token");
 }
 
-export async function api<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
+export function attachmentUrl(id: number): string {
+  return `${API}/messages/attachments/${id}`;
+}
+
+function friendlyError(res: Response, text: string): string {
+  if (res.status === 0 || text.includes("Failed to fetch") || text.includes("NetworkError")) {
+    return "API 서버에 연결할 수 없습니다. NEXT_PUBLIC_ERP_API_URL 설정을 확인하세요.";
+  }
+  try {
+    const data = JSON.parse(text) as { detail?: string };
+    if (data.detail) return data.detail;
+  } catch {
+    /* plain text */
+  }
+  return text || res.statusText;
+}
+
+export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -24,15 +38,23 @@ export async function api<T>(
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API}${path}`, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API}${path}`, { ...options, headers });
+  } catch {
+    throw new Error("API 서버에 연결할 수 없습니다. NEXT_PUBLIC_ERP_API_URL 설정을 확인하세요.");
+  }
+
   if (res.status === 401) {
     clearToken();
-    if (typeof window !== "undefined") window.location.href = "/login";
+    if (typeof window !== "undefined" && !path.includes("/auth/login")) {
+      window.location.href = "/login";
+    }
     throw new Error("Unauthorized");
   }
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || res.statusText);
+    throw new Error(friendlyError(res, text));
   }
   if (res.status === 204) return {} as T;
   return res.json();
@@ -59,4 +81,11 @@ export type Approval = {
   reject_reason?: string;
   requester: User;
   created_at: string;
+};
+
+export type MessageAttachment = {
+  id: number;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
 };

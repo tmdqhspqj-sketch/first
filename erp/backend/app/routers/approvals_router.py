@@ -23,7 +23,7 @@ def _to_out(req: ApprovalRequest) -> ApprovalOut:
 @router.get("", response_model=list[ApprovalOut])
 def list_approvals(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     q = db.query(ApprovalRequest).options(joinedload(ApprovalRequest.requester).joinedload(User.rank))
-    if user.role == "super":
+    if user.role == "admin":
         return q.order_by(ApprovalRequest.id.desc()).all()
     if user.role == "manager" or user.rank.name == "부장":
         mine = q.filter(ApprovalRequest.requester_id == user.id).all()
@@ -35,8 +35,8 @@ def list_approvals(db: Session = Depends(get_db), user: User = Depends(get_curre
 
 @router.get("/inbox", response_model=list[ApprovalOut])
 def approval_inbox(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "super":
-        raise HTTPException(403, "Super cannot approve; use list view")
+    if user.role == "admin":
+        raise HTTPException(403, "Admin cannot approve; use list view")
     items = (
         db.query(ApprovalRequest)
         .options(joinedload(ApprovalRequest.requester).joinedload(User.rank))
@@ -112,8 +112,8 @@ def submit_request(req_id: int, db: Session = Depends(get_db), user: User = Depe
 
 @router.post("/{req_id}/approve", response_model=ApprovalOut)
 def approve_request(req_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "super":
-        raise HTTPException(403, "Super can only view approvals")
+    if user.role == "admin":
+        raise HTTPException(403, "Admin can only view approvals")
     req = db.get(ApprovalRequest, req_id)
     if not req:
         raise HTTPException(404, "Not found")
@@ -137,8 +137,8 @@ def reject_request(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if user.role == "super":
-        raise HTTPException(403, "Super can only view approvals")
+    if user.role == "admin":
+        raise HTTPException(403, "Admin can only view approvals")
     req = db.get(ApprovalRequest, req_id)
     if not req:
         raise HTTPException(404, "Not found")

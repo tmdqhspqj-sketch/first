@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.database import get_db
-from app.models import User
+from app.models import User, UserRole
 
 security = HTTPBearer(auto_error=False)
 
@@ -27,26 +27,42 @@ def create_token(user_id: int, login_id: str, role: str) -> str:
     return jwt.encode(payload, settings.secret_key, algorithm="HS256")
 
 
+def _user_from_jwt(token: str, db: Session) -> User | None:
+    try:
+        data = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
+        user_id = int(data["sub"])
+    except (JWTError, ValueError, KeyError):
+        return None
+    user = db.query(User).options(joinedload(User.rank)).filter(User.id == user_id).first()
+    if not user or not user.active:
+        return None
+    return user
+
+
 def get_current_user(
     creds: HTTPAuthorizationCredentials | None = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
     if not creds or not creds.credentials:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
-    try:
-        data = jwt.decode(creds.credentials, settings.secret_key, algorithms=["HS256"])
-        user_id = int(data["sub"])
-    except (JWTError, ValueError, KeyError):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token") from None
-    user = db.query(User).options(joinedload(User.rank)).filter(User.id == user_id).first()
-    if not user or not user.active:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User inactive")
+    user = _user_from_jwt(creds.credentials, db)
+    if not user:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
     return user
 
 
-def require_super(user: User = Depends(get_current_user)) -> User:
-    if user.role != "super":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Super only")
+def get_optional_user(
+    creds: HTTPAuthorizationCredentials | None = Depends(security),
+    db: Session = Depends(get_db),
+) -> User | None:
+    if not creds or not creds.credentials:
+        return None
+    return _user_from_jwt(creds.credentials, db)
+
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    if user.role != UserRole.admin.value:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin only")
     return user
 
 

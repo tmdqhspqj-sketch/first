@@ -45,7 +45,7 @@ export default function LoginPage() {
           </button>
         </form>
         <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "1rem" }}>
-          데모: bujang / staff1 / sajang 등 비밀번호 demo1
+          관리자: admin / admin 또는 hongseungbo / hongsb · 데모: bujang 등 비밀번호 demo1
         </p>
       </div>
     </div>

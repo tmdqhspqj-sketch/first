@@ -23,6 +23,11 @@ DEMO_USERS = [
     ("staff1", "최사원", "사원", UserRole.user.value, "demo1"),
 ]
 
+ADMIN_USERS = [
+    (settings.hong_login, "홍승보", settings.hong_password),
+    (settings.admin_login, "시스템관리자", settings.admin_password),
+]
+
 
 def role_for_rank(rank_name: str) -> str:
     if rank_name in ("사장", "상무", "이사"):
@@ -41,19 +46,20 @@ def run_seed() -> None:
 
         ranks = {r.name: r for r in db.query(Rank).all()}
 
-        super_user = db.query(User).filter(User.login_id == settings.super_login).first()
-        if not super_user:
+        for login_id, name, pwd in ADMIN_USERS:
+            if db.query(User).filter(User.login_id == login_id).first():
+                continue
             db.add(
                 User(
-                    login_id=settings.super_login,
-                    password_hash=hash_password(settings.super_password),
-                    name="홍승보",
+                    login_id=login_id,
+                    password_hash=hash_password(pwd),
+                    name=name,
                     rank_id=ranks["사장"].id,
-                    role=UserRole.superuser.value,
+                    role=UserRole.admin.value,
                     active=True,
                 )
             )
-            db.commit()
+        db.commit()
 
         for login_id, name, rank_name, role, pwd in DEMO_USERS:
             if db.query(User).filter(User.login_id == login_id).first():

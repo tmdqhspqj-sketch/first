@@ -1,0 +1,36 @@
+---
+description: 코드 수정 후 Git push 및 Vercel 자동 배포
+alwaysApply: true
+---
+
+# Git push + Vercel 배포
+
+사용자가 따로 말하지 않는 한, **코드 수정이 끝나면** 아래를 수행한다.
+
+## 1. Git commit & push
+
+- 변경사항을 `main`에 커밋하고 `origin`에 push한다.
+- 커밋 메시지는 변경 목적(why)을 1~2문장으로 요약한다.
+- `.env`, 비밀번호, API 키 등 시크릿은 커밋하지 않는다.
+
+## 2. Vercel 배포
+
+push 후 Vercel Git 연동이 있어도, **아래 프로젝트는 CLI로 production 배포를 확인·실행**한다.
+
+| 프로젝트 | 폴더 | URL |
+|----------|------|-----|
+| `first-erp` | `erp/frontend/` | https://first-erp-pearl.vercel.app |
+| `first-erp-api` | `erp/backend/` | https://first-erp-api.vercel.app |
+| `first-ai` | `frontend/` | https://first-ai-khaki.vercel.app |
+
+```powershell
+cd erp/backend && npx vercel deploy --prod --yes
+cd erp/frontend && npx vercel deploy --prod --yes
+```
+
+AI 프론트(`frontend/`)만 변경된 경우에만 `first-ai` 배포.
+
+## 예외
+
+- 사용자가 "커밋/푸시하지 마" 또는 "배포하지 마"라고 명시한 경우
+- 시크릿 설정만 필요하고 코드 변경이 없는 경우

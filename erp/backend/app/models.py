@@ -8,7 +8,7 @@ from app.database import Base
 
 
 class UserRole(str, enum.Enum):
-    superuser = "super"
+    admin = "admin"
     manager = "manager"
     user = "user"
 
@@ -52,6 +52,7 @@ class User(Base):
     rank_id: Mapped[int] = mapped_column(ForeignKey("ranks.id"))
     role: Mapped[str] = mapped_column(String(16))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    deactivated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     rank: Mapped["Rank"] = relationship(back_populates="users")
@@ -90,11 +91,9 @@ class ApprovalRequest(Base):
     requester_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     title: Mapped[str] = mapped_column(String(200))
     body: Mapped[str] = mapped_column(Text, default="")
-    # leave
     leave_start: Mapped[str | None] = mapped_column(String(32), nullable=True)
     leave_end: Mapped[str | None] = mapped_column(String(32), nullable=True)
     leave_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    # product idea (requester name/rank snapshot)
     idea_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     reject_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -114,6 +113,21 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     sender: Mapped["User"] = relationship(foreign_keys=[sender_id])
+    attachments: Mapped[list["MessageAttachment"]] = relationship(back_populates="message")
+
+
+class MessageAttachment(Base):
+    __tablename__ = "message_attachments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    message_id: Mapped[int] = mapped_column(ForeignKey("messages.id"))
+    filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(128), default="application/octet-stream")
+    data_base64: Mapped[str] = mapped_column(Text)
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    message: Mapped["Message"] = relationship(back_populates="attachments")
 
 
 class MessageRecipient(Base):

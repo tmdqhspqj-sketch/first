@@ -11,6 +11,7 @@ const links = [
   { href: "/rooms", label: "회의실" },
   { href: "/messages", label: "메시지" },
   { href: "/users", label: "사용자" },
+  { href: "/admins", label: "관리자", adminOnly: true },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -26,7 +27,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   if (!me) return <p style={{ padding: "2rem" }}>로딩…</p>;
 
-  const showUsers = me.role === "super" || me.role === "manager";
+  const showUsers = me.role === "admin" || me.role === "manager";
 
   return (
     <div className="layout">
@@ -39,7 +40,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <span className="badge">{me.role}</span>
         </p>
         {links
-          .filter((l) => l.href !== "/users" || showUsers)
+          .filter((l) => {
+            if (l.adminOnly) return me.role === "admin";
+            if (l.href === "/users") return showUsers;
+            return true;
+          })
           .map((l) => (
             <Link key={l.href} href={l.href} className={path === l.href ? "active" : ""}>
               {l.label}
