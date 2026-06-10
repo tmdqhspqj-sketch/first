@@ -94,7 +94,7 @@ export default function ApprovalsPage() {
 
   const canApprove = me && me.role !== "admin";
   const isTemp = me?.rank?.name === "임시";
-  const leaveKinds = isTemp ? ["연차", "반차"] : ["연차", "반차", "병가"];
+  const leaveKinds = isTemp ? ["월차", "연차", "반차", "병가"] : ["연차", "반차", "병가"];
 
   return (
     <AppShell>
@@ -116,7 +116,7 @@ export default function ApprovalsPage() {
         <form className="card" onSubmit={createLeave}>
           <h3>휴가 신청</h3>
           {isTemp && (
-            <p style={{ fontSize: "0.9rem", color: "var(--muted)" }}>임시 직급은 연차·반차만 신청할 수 있습니다.</p>
+            <p style={{ fontSize: "0.9rem", color: "var(--muted)" }}>임시 직급: 월차 · 연차 · 반차 · 병가</p>
           )}
           <label className="label">종류</label>
           <select name="kind" className="field" value={leaveKind} onChange={(e) => setLeaveKind(e.target.value)}>
