@@ -14,6 +14,7 @@ RANKS = [
     ("과장", 3),
     ("대리", 2),
     ("사원", 1),
+    ("임시", 0),
 ]
 
 DEMO_USERS = [
@@ -21,6 +22,7 @@ DEMO_USERS = [
     ("sangmu", "이상무", "상무", UserRole.manager.value, "demo1"),
     ("bujang", "박팀장", "부장", UserRole.user.value, "demo1"),
     ("staff1", "최사원", "사원", UserRole.user.value, "demo1"),
+    ("temp1", "김임시", "임시", UserRole.user.value, "demo1"),
 ]
 
 ADMIN_USERS = [
@@ -42,6 +44,11 @@ def run_seed() -> None:
         if not db.query(Rank).count():
             for name, level in RANKS:
                 db.add(Rank(name=name, level=level))
+            db.commit()
+        else:
+            for name, level in RANKS:
+                if not db.query(Rank).filter(Rank.name == name).first():
+                    db.add(Rank(name=name, level=level))
             db.commit()
 
         ranks = {r.name: r for r in db.query(Rank).all()}

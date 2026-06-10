@@ -5,7 +5,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.models import MeetingRoom, RoomBooking, User
 from app.schemas import BookingCreateIn, BookingOut, RoomOut
-from app.services.room_booking import validate_booking_window
+from app.services.room_booking import can_book_room, validate_booking_window
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
@@ -31,6 +31,8 @@ def create_booking(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    if not user.rank or not can_book_room(user.rank.name):
+        raise HTTPException(403, "임시 직급은 회의실 예약을 할 수 없습니다")
     validate_booking_window(body.start_at, body.end_at)
     overlap = (
         db.query(RoomBooking)

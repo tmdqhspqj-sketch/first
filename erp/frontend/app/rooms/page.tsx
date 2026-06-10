@@ -14,11 +14,22 @@ type Booking = {
   user: User;
 };
 
-const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
-  const h = String(Math.floor(i / 2)).padStart(2, "0");
-  const m = i % 2 === 0 ? "00" : "30";
-  return `${h}:${m}`;
-});
+const WORK_START = 9;
+const WORK_END = 17;
+
+function buildTimeSlots(maxStartHour: number, maxStartMinute: number): string[] {
+  const slots: string[] = [];
+  for (let h = WORK_START; h <= maxStartHour; h++) {
+    for (const m of [0, 30]) {
+      if (h === maxStartHour && m > maxStartMinute) break;
+      slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    }
+  }
+  return slots;
+}
+
+const SLOTS_30 = buildTimeSlots(16, 30);
+const SLOTS_60 = buildTimeSlots(16, 0);
 
 function formatMonthDay(iso: string) {
   const d = new Date(iso);
@@ -37,7 +48,12 @@ function bookerLabel(user: User) {
 export default function RoomsPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [me, setMe] = useState<User | null>(null);
+  const [duration, setDuration] = useState(30);
   const [error, setError] = useState("");
+
+  const canBook = me?.rank?.name !== "임시";
+  const timeSlots = duration === 60 ? SLOTS_60 : SLOTS_30;
 
   const load = () => {
     api<Room[]>("/rooms").then(setRooms);
@@ -45,6 +61,7 @@ export default function RoomsPage() {
   };
 
   useEffect(() => {
+    api<User>("/auth/me").then(setMe);
     load();
   }, []);
 
@@ -75,6 +92,7 @@ export default function RoomsPage() {
       });
       load();
       e.currentTarget.reset();
+      setDuration(30);
     } catch (err) {
       setError(err instanceof Error ? err.message : "예약 실패");
     }
@@ -84,39 +102,51 @@ export default function RoomsPage() {
     <AppShell>
       <h1>회의실 예약</h1>
       <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-        시작 시간은 30분 단위 · 예약 시간 30분 또는 1시간
+        일과시간 09:00~17:00 · 30분 단위 · 30분 또는 1시간 예약
       </p>
       {error && <p className="error">{error}</p>}
-      <form className="card" onSubmit={book}>
-        <label className="label">회의실</label>
-        <select name="room_id" className="field" required>
-          {rooms.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name} ({r.capacity}명)
-            </option>
-          ))}
-        </select>
-        <label className="label">제목</label>
-        <input name="title" className="field" required />
-        <label className="label">날짜</label>
-        <input name="date" type="date" className="field" required />
-        <label className="label">시작 시간 (30분 단위)</label>
-        <select name="start_time" className="field" required>
-          {TIME_SLOTS.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        <label className="label">예약 시간</label>
-        <select name="duration" className="field" required defaultValue="30">
-          <option value="30">30분</option>
-          <option value="60">1시간</option>
-        </select>
-        <button type="submit" className="btn btn-primary">
-          예약
-        </button>
-      </form>
+      {!canBook ? (
+        <div className="card">
+          <p>임시 직급은 회의실 예약을 할 수 없습니다. 예약 목록만 조회할 수 있습니다.</p>
+        </div>
+      ) : (
+        <form className="card" onSubmit={book}>
+          <label className="label">회의실</label>
+          <select name="room_id" className="field" required>
+            {rooms.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name} ({r.capacity}명)
+              </option>
+            ))}
+          </select>
+          <label className="label">제목</label>
+          <input name="title" className="field" required />
+          <label className="label">날짜</label>
+          <input name="date" type="date" className="field" required />
+          <label className="label">예약 시간</label>
+          <select
+            name="duration"
+            className="field"
+            required
+            value={duration}
+            onChange={(e) => setDuration(Number(e.target.value))}
+          >
+            <option value={30}>30분</option>
+            <option value={60}>1시간</option>
+          </select>
+          <label className="label">시작 시간 (30분 단위)</label>
+          <select name="start_time" className="field" required key={duration}>
+            {timeSlots.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+          <button type="submit" className="btn btn-primary">
+            예약
+          </button>
+        </form>
+      )}
       <div className="card">
         <h3>예약 목록</h3>
         <table>

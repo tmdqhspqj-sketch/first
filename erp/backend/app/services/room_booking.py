@@ -1,8 +1,15 @@
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
 from fastapi import HTTPException
 
 ALLOWED_DURATIONS = {30, 60}
+WORK_START = time(9, 0)
+WORK_END = time(17, 0)
+RANK_NO_BOOKING = "임시"
+
+
+def can_book_room(rank_name: str) -> bool:
+    return rank_name != RANK_NO_BOOKING
 
 
 def validate_booking_window(start_at: datetime, end_at: datetime) -> None:
@@ -18,3 +25,7 @@ def validate_booking_window(start_at: datetime, end_at: datetime) -> None:
     expected_end = start_at + timedelta(minutes=duration)
     if end_at != expected_end:
         raise HTTPException(400, "예약 시간이 올바르지 않습니다")
+    start_t = start_at.time().replace(second=0, microsecond=0)
+    end_t = end_at.time().replace(second=0, microsecond=0)
+    if start_t < WORK_START or end_t > WORK_END:
+        raise HTTPException(400, "회의실 예약은 일과시간 09:00~17:00만 가능합니다")
